@@ -44,3 +44,6 @@ body {
 .featurette-divider {
   margin-bottom: 80px; /* Space out the Bootstrap <hr> more */
 }
+
+h2{ position:relative; }
+h2 span{ position:absolute; top:-50px;}
