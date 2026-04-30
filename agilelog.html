@@ -108,6 +108,22 @@
         margin-top: 30px;
       }
 
+      .capabilities {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px 20px;
+        margin: 28px 0 0;
+        padding: 0;
+        list-style: none;
+        color: #26313d;
+        font-size: 15px;
+      }
+
+      .capabilities li {
+        padding: 9px 0;
+        border-top: 1px solid var(--line);
+      }
+
       .button {
         display: inline-flex;
         align-items: center;
@@ -288,7 +304,8 @@
 
         .hero,
         .grid,
-        .metrics {
+        .metrics,
+        .capabilities {
           grid-template-columns: 1fr;
         }
 
@@ -322,6 +339,14 @@
             <p class="summary">
               AgileLog is a forkable shared log for reliable exploratory AI agents.<a href="https://arxiv.org/pdf/2604.14590">Read the research paper</a>. 
             </p>
+            <ul class="capabilities" aria-label="AgileLog capabilities">
+              <li>fork live streams cheaply</li>
+              <li>isolate agent experiments</li>
+              <li>stage writes before commit</li>
+              <li>replay alternative futures</li>
+              <li>debug agent/data interactions</li>
+              <li>let teams test agents on production-like streams without corrupting state</li>
+            </ul>
             <div class="actions">
               <a class="button" href="#resources">view resources</a>
               <a class="button secondary" href="https://github.com/dassl-uiuc/">GitHub</a>
