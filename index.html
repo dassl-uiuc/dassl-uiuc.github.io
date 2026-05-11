@@ -12,6 +12,10 @@
     <meta http-equiv="Description" name="Description" content="UIUC Distributed and Storage Systems Lab homepage">
     <meta http-equiv="Keywords" name="Keywords" content="dassl, systems, UIUC, distributed systems, storage systems, aishwarya, ramnatthan, ganesan, alagappan">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
     <!-- Bootstrap core CSS -->
     <link href="resources/bootstrap.min.css" rel="stylesheet">
 
@@ -43,7 +47,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#">DASSL</a>
+          <a class="navbar-brand" href="#">DASSL <span>UIUC</span></a>
         </div>
         <div id="navbar" class="collapse navbar-collapse">
           <ul class="nav navbar-nav">
@@ -59,17 +63,53 @@
       </div>
     </nav>
 
-    <div class="container">
-
-      <div class="starter-template">
-        <img src="resources/dassl.png" alt="UIUC Distributed and Storage Systems Lab" class="imgcenter">
+    <header class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">University of Illinois Urbana-Champaign</p>
+          <div class="hero-logo" aria-label="Distributed and Storage Systems Lab">
+            <div class="logo-mark" aria-hidden="true">
+              <span class="logo-node node-a"></span>
+              <span class="logo-node node-b"></span>
+              <span class="logo-node node-c"></span>
+              <strong>D</strong>
+            </div>
+            <div class="logo-copy">
+              <span class="logo-short">DASSL</span>
+              <span class="logo-long">Distributed and Storage Systems Lab</span>
+            </div>
+          </div>
+          <div class="project-showcase" aria-labelledby="CurrentProjects">
+            <p class="project-kicker" id="CurrentProjects">Current Projects</p>
+            <div class="project-tiles">
+              <article class="project-tile tile-realtime">
+                <h1>Real-time data infrastructure.</h1>
+              </article>
+              <article class="project-tile tile-logging">
+                <h1>New fault-tolerant logging abstractions.</h1>
+              </article>
+              <article class="project-tile tile-cxl">
+                <h1>CXL memory systems.</h1>
+              </article>
+              <article class="project-tile tile-agent">
+                <h1>Agent-first data infrastructure.</h1>
+              </article>
+            </div>
+          </div>
+          <div class="hero-actions">
+            <a href="#Publications" class="button button-primary">Explore publications</a>
+            <a href="#Join" class="button button-secondary">Join the lab</a>
+          </div>
+        </div>
       </div>
-      <hr class="featurette-divider">
+    </header>
+
+    <main class="site-main">
        <div class="container marketing">
 
       <!-- Three columns of text below the carousel -->
       <div class="row">
-        <h2><span id="News"></span>News</h2>
+        <h2 id="News">News</h2>
         
         <ul>
           <li>Congrats Kiran on winning the Distinguised Shadow PC Reviewer Award at EuroSys 26!</li>
@@ -95,24 +135,89 @@
           <li>Aishwarya and Ram were interviewed by TigerBeetle's CEO Joran, and Chaitanya (who interned there) - <a href="https://www.youtube.com/watch?v=1rArr0yb3zg&t=2s">Video</a>.</li>
         </ul>
         
-        <h2><span id="People"></span>People</h2>
+        <h2 id="People">People</h2>
         
-        <ul>
-          <li><a href="https://aishwaryaganesan.github.io/">Aishwarya Ganesan</a>, Assistant Professor</li>
-          <li><a href="https://ramalagappan.github.io/">Ram Alagappan</a>, Assistant Professor</li>
-          <li><a href="https://www.xuhaol.com/">Xuhao Luo</a> (PhD student) started Spring 2023</li>
-          <li><a href="https://maknee.github.io/">Henry Zhu</a> (PhD student) started Fall 2022</li>
-          <li><a href="https://shreesha00.github.io/">Shreesha G Bhat</a> (PhD student) started Fall 2023</li>
-          <li><a href="https://jiyuuuhuuu.github.io/">Jiyu Hu</a> (PhD student) started Fall 2023</li>
-          <li><a href="https://kstark007.github.io/">Kiran Hombal</a> (PhD student) started Fall 2023</li>
-	  <li><a href="https://emaanatique.github.io/">Emaan Atique</a> (PhD student) starting Spring 2025</li>
-	  <li><a href="https://www.noguera.dev/">Michael Noguera</a> (PhD student) started Fall 2025</li>
-	  <li><a href="">Landon Johnson</a> (PhD student) started Fall 2025</li>
+        <div class="team-grid">
+          <article class="team-card faculty-card">
+            <img src="images/aishwarya.jpg" alt="Aishwarya Ganesan">
+            <div>
+              <h3><a href="https://aishwaryaganesan.github.io/">Aishwarya Ganesan</a></h3>
+              <p>Assistant Professor</p>
+            </div>
+          </article>
+          <article class="team-card faculty-card">
+            <img src="people/ram.png" alt="Ram Alagappan">
+            <div>
+              <h3><a href="https://ramalagappan.github.io/">Ram Alagappan</a></h3>
+              <p>Assistant Professor</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <div class="avatar-fallback" aria-hidden="true">XL</div>
+            <div>
+              <h3><a href="https://www.xuhaol.com/">Xuhao Luo</a></h3>
+              <p>PhD student · Started Spring 2023</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/henry.jpeg" alt="Henry Zhu">
+            <div>
+              <h3><a href="https://maknee.github.io/">Henry Zhu</a></h3>
+              <p>PhD student · Started Fall 2022</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/shreesha.jpg" alt="Shreesha G Bhat">
+            <div>
+              <h3><a href="https://shreesha00.github.io/">Shreesha G Bhat</a></h3>
+              <p>PhD student · Started Fall 2023</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/jiyu.jpg" alt="Jiyu Hu">
+            <div>
+              <h3><a href="https://jiyuuuhuuu.github.io/">Jiyu Hu</a></h3>
+              <p>PhD student · Started Fall 2023</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/kiran.jpg" alt="Kiran Hombal">
+            <div>
+              <h3><a href="https://kstark007.github.io/">Kiran Hombal</a></h3>
+              <p>PhD student · Started Fall 2023</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/emaan.jpg" alt="Emaan Atique">
+            <div>
+              <h3><a href="https://emaanatique.github.io/">Emaan Atique</a></h3>
+              <p>PhD student · Starting Spring 2025</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <img src="images/michael.jpg" alt="Michael Noguera">
+            <div>
+              <h3><a href="https://www.noguera.dev/">Michael Noguera</a></h3>
+              <p>PhD student · Started Fall 2025</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <div class="avatar-fallback" aria-hidden="true">LJ</div>
+            <div>
+              <h3>Landon Johnson</h3>
+              <p>PhD student · Started Fall 2025</p>
+            </div>
+          </article>
+          <article class="team-card">
+            <div class="avatar-fallback" aria-hidden="true">MJ</div>
+            <div>
+              <h3><a href="https://nonmonotonic.dev">Madhav Jivrajani</a></h3>
+              <p>MS student</p>
+            </div>
+          </article>
+        </div>
 
-          <li><a href="https://nonmonotonic.dev">Madhav Jivrajani</a> (MS student)</li>
-        </ul>
-
-        <h2><span id="Alumni"></span>Alumni</h2>
+        <h2 id="Alumni">Alumni</h2>
         
         <ul>
           <li><a href="https://tonyhong007.github.io/">Tony Hong</a> (Visiting Researcher)</li>
@@ -190,7 +295,7 @@
 
 
       <div class="row">
-        <h2><span id="Publications"></span>Publications</h2>
+        <h2 id="Publications">Publications</h2>
         
         <h3>2026</h3>
         <div class="resume-item d-flex flex-column flex-md-row mb-3">
@@ -704,7 +809,7 @@
 
 
       <div class="row">
-        <h2><span id="Software"></span>Software</h2>
+        <h2 id="Software">Software</h2>
         All our open-source software can be found at <a href="https://github.com/dassl-uiuc/">this Github repo</a>.        
         
       </div><!-- /.row -->
@@ -714,52 +819,22 @@
       <hr class="featurette-divider">
 
       <div class="row">
-      <h2><span id="Pictures"></span>Pictures</h2>
+      <h2 id="Pictures">Pictures</h2>
       
 
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 20px;
-        }
-        .gallery {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 20px;
-        }
-        .gallery img {
-          width: 600px;
-          height: auto;
-          border-radius: 8px;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-          transition: transform 0.3s;
-        }
-        .gallery img:hover {
-          transform: scale(1.00);
-        }
-      </style>
-
       <div class="gallery">
-        
-
-         <table>
-    <tr>
-      <td>Group Lunch Summer 25</td>
-      <td><img src="images/1.jpeg" alt="1"></td>
-    </tr>
-    <br>
-    <tr>
-      <td>SOSP 24</td>
-      <td><img src="images/3.jpeg" alt="2"></td>
-    </tr>
-    <tr>
-      <td>Fun three-gens pic at SOSP 24</td>
-      <td><img src="images/2.jpeg" alt="3"></td>
-    </tr>
-  </table>
-
+        <figure>
+          <img src="images/1.jpeg" alt="DASSL group lunch in summer 2025">
+          <figcaption>Group Lunch Summer 25</figcaption>
+        </figure>
+        <figure>
+          <img src="images/3.jpeg" alt="DASSL at SOSP 2024">
+          <figcaption>SOSP 24</figcaption>
+        </figure>
+        <figure>
+          <img src="images/2.jpeg" alt="Three generations together at SOSP 2024">
+          <figcaption>Fun three-gens pic at SOSP 24</figcaption>
+        </figure>
       </div>
 
   
@@ -767,21 +842,14 @@
 
 
       <div class="row">
-      <h2><span id="Join"></span>Join Us!</h2>
+      <h2 id="Join">Join Us!</h2>
       We are actively looking for strong and self-motivated PhD students to join DASSL at UIUC. Please apply to the UIUC CS PhD program and mention Aishwarya Ganesan (aganesn2@illinois.edu) or Ram Alagappan (ramn@illinois.edu) as potential advisors in your application. UIUC has a stellar systems group (see <a href="https://csrankings.org/#/index?arch&comm&sec&mod&hpc&mobile&metrics&ops&plan&soft&da&bed&us"> csrankings</a>) that you can be a part of and contribute.         
         
       </div><!-- /.row -->
 
 
-      <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
-      <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
-      <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
-
-
-
-
-
     </div><!-- /.container -->
+    </main>
 
 
     <!-- Bootstrap core JavaScript
