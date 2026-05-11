@@ -617,15 +617,6 @@ li:last-child {
   line-height: 1.18;
 }
 
-.team-card h3 a {
-  color: var(--illinois-blue);
-}
-
-.team-card h3 a:hover,
-.team-card h3 a:focus {
-  color: #005f9e;
-}
-
 .team-card p {
   margin: 7px 0 0;
   color: var(--muted);
@@ -691,7 +682,8 @@ font[color="E84A27"] {
 
 .resume-content a,
 .marketing .row > a,
-.marketing li a {
+.marketing li a,
+.team-card h3 a {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -701,7 +693,8 @@ font[color="E84A27"] {
 
 .resume-content a::after,
 .marketing .row > a::after,
-.marketing li a::after {
+.marketing li a::after,
+.team-card h3 a::after {
   margin-left: 5px;
   content: "↗";
   font-size: 12px;
