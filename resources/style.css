@@ -6,6 +6,7 @@
   --panel: #ffffff;
   --illinois-blue: #13294b;
   --illinois-orange: #ff5f05;
+  --award-red: #c94f4f;
   --cyan: #22d3ee;
   --green: #14b8a6;
   --shadow: 0 24px 80px rgba(19, 41, 75, 0.16);
@@ -675,9 +676,15 @@ li:last-child {
   line-height: 1.35;
 }
 
-.text-primary,
-font[color="E84A27"] {
+.text-primary {
   color: var(--illinois-orange);
+}
+
+.resume-content .publication-note,
+.resume-content .publication-note b,
+.resume-content .best-paper-award,
+.resume-content .best-paper-award b {
+  color: var(--award-red) !important;
 }
 
 .resume-content a,
