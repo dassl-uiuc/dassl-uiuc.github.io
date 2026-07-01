@@ -137,13 +137,13 @@ u {
 
 .hero {
   position: relative;
-  min-height: 88vh;
-  padding: 132px 0 76px;
+  min-height: 100vh;
+  padding: 108px 0 88px;
   overflow: hidden;
   color: #ffffff;
   background:
     linear-gradient(120deg, rgba(6, 17, 31, 0.94), rgba(19, 41, 75, 0.84)),
-    url("../images/1.jpeg") center / cover;
+    url("../images/1.jpeg") center 45% / cover;
 }
 
 .hero::after {
@@ -185,7 +185,7 @@ u {
   width: min(100%, 680px);
   min-height: 118px;
   padding: 16px 20px 16px 16px;
-  margin: 0 0 26px;
+  margin: 0 0 10px;
   overflow: hidden;
   color: #ffffff;
   background:
@@ -321,7 +321,7 @@ u {
 
 .project-showcase {
   max-width: none;
-  margin-top: 72px;
+  margin-top: 0;
 }
 
 .project-kicker {
@@ -756,8 +756,10 @@ li:last-child {
   }
 
   .hero {
-    min-height: auto;
-    padding-top: 118px;
+    min-height: 104vh;
+    padding-top: 100px;
+    padding-bottom: 78px;
+    background-position: center 42%;
   }
 
   .hero-grid {
@@ -766,6 +768,7 @@ li:last-child {
 
   .project-showcase {
     max-width: none;
+    margin-top: 0;
   }
 
   .project-tiles {
@@ -804,7 +807,13 @@ li:last-child {
   }
 
   .hero {
-    padding: 104px 0 58px;
+    min-height: 112vh;
+    padding: 88px 0 68px;
+    background-position: center 38%;
+  }
+
+  .project-showcase {
+    margin-top: 0;
   }
 
   .project-tiles {
