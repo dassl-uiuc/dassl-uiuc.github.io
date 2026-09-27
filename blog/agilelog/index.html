@@ -154,16 +154,19 @@
         <p>Bolt creates forks in <strong>10s of microseconds</strong>. The metadata-copying variant, BoltMetaCpy, gets slower as the log grows—reaching about 100 milliseconds for 25 million entries. These measurements assign forks to an already running broker; they do not include provisioning new compute.</p>
         <figure class="article-figure compact" id="figure-4">
           <a href="../../resources/blog/agilelog/fork-latency.png" aria-label="Open Figure 4 at full size">
-            <img src="../../resources/blog/agilelog/fork-latency.png" width="387" height="286" loading="lazy" alt="Log-scale chart of fork latency versus log entries. Bolt remains near 50 microseconds while BoltMetaCpy grows to about 100,000 microseconds.">
+            <img src="../../resources/blog/agilelog/fork-latency.png" width="1250" height="758" loading="lazy" alt="Log-scale chart of fork latency versus log entries. The green Bolt curve remains in the tens of microseconds while BoltMetaCpy grows to about 100,000 microseconds.">
           </a>
           <figcaption><strong>Figure 4.</strong> Avoiding metadata copies keeps fork creation fast as log history grows.</figcaption>
         </figure>
-        <p>Continuous inheritance also has little effect on the parent in the plotted experiments. The throughput–latency curves closely overlap with 0, 10, and 100 cForks per root, both for one root log and for 32 root logs.</p>
+        <h3>Why thousands of continuous forks?</h3>
+        <p><strong>Thousands of cForks are a realistic deployment scenario.</strong> Imagine giving every developer in a large organization a live branch of the production system's streams. Each developer, or their coding agent, can build and test stream processors against incoming production data, while keeping experimental writes and test events isolated from production consumers. With thousands of developers, even one live branch per developer means thousands of cForks; parallel development and testing tasks can create more.</p>
+        <p>To examine this scale, we measure parent metadata throughput and latency with 10, 100, and 1,000 cForks. With just 10 cForks, the naive approach is still viable: naive-cfork (orange) sustains substantial throughput, although Bolt (green) achieves lower latency and higher throughput. But as the number of cForks grows to 100 and then 1,000, the naive approach collapses: its sustainable throughput drops sharply, and latency rises even at low request rates. Bolt continues to sustain tens of thousands of metadata operations per second at latencies in the tens of microseconds.</p>
+        <p><strong>At this scale, efficient metadata updates are essential.</strong> Synchronously updating every child's index on each parent append puts too much work on the parent's critical path. Bolt's tail-only updates eliminate those per-child index updates, and lazy tail propagation avoids eagerly updating every child's tail. Together, these techniques let Bolt support many cForks without the collapse seen in the naive approach. These plots measure metadata-layer performance, rather than end-to-end log latency.</p>
         <figure class="article-figure wide" id="figure-5">
           <a href="../../resources/blog/agilelog/parent-performance.png" aria-label="Open Figure 5 at full size">
-            <img src="../../resources/blog/agilelog/parent-performance.png" width="808" height="292" loading="lazy" alt="Parent append throughput–latency curves with 0, 10, and 100 continuous forks nearly overlap for both one root log and 32 root logs.">
+            <img src="../../resources/blog/agilelog/parent-performance.png" width="1854" height="570" loading="lazy" alt="Parent metadata throughput versus latency with 10, 100, and 1,000 cForks. Bolt (green) sustains high throughput in all three settings; naive-cfork (orange) loses throughput as fork counts increase. The 1,000-fork panel uses a logarithmic latency axis.">
           </a>
-          <figcaption><strong>Figure 5.</strong> The parent retains similar performance with up to 100 cForks per root in these tests. Original chart from the talk.</figcaption>
+          <figcaption><strong>Figure 5.</strong> Parent metadata scalability with 10, 100, and 1,000 cForks: Bolt (green) versus naive-cfork (orange). The rightmost panel uses a logarithmic latency axis; the other two use linear axes. Updated plot from the slides.</figcaption>
         </figure>
 
         <h3>An analytics agent alongside a live workload</h3>
@@ -171,9 +174,9 @@
         <p>With Kafka, both workloads contend at the shared broker. During the agent's query-execution phases, the traditional workload's mean latency increases <strong>14×</strong> and its p99 latency increases about <strong>130×</strong> relative to the agent's thinking phases. With Bolt, the agent analyzes the historical records on an sFork using a separate broker, and the traditional workload's latency remains stable.</p>
         <figure class="article-figure wide" id="figure-6">
           <a href="../../resources/blog/agilelog/analytics-agent.png" aria-label="Open Figure 6 at full size">
-            <img src="../../resources/blog/agilelog/analytics-agent.png" width="1177" height="271" loading="lazy" alt="Kafka's traditional workload experiences latency spikes while the analytics agent executes queries. Bolt's latency stays stable. Mean and p99 Kafka latency rise 14 and 130.8 times between thinking and query execution.">
+            <img src="../../resources/blog/agilelog/analytics-agent.png" width="1840" height="1280" loading="lazy" alt="Kafka's traditional workload experiences latency spikes while the analytics agent executes queries. Bolt's latency stays stable. Mean and p99 Kafka latency rise 14 and 130.8 times between thinking and query execution.">
           </a>
-          <figcaption><strong>Figure 6.</strong> Agent exploration interferes with the colocated Kafka workload. Bolt isolates the analytics work on a fork. The multipliers compare query-execution and thinking phases within each system. Original chart from the talk.</figcaption>
+          <figcaption><strong>Figure 6.</strong> Agent exploration interferes with the colocated Kafka workload. Bolt isolates the analytics work on a fork. Top: workload latency over time. Bottom: mean and p99 latency by phase. The multipliers compare query-execution and thinking phases within each system. Updated plots from the slides.</figcaption>
         </figure>
 
         <h3>A restocking agent that can make mistakes</h3>
@@ -181,9 +184,9 @@
         <p>With Bolt, the agent writes into a promotable cFork first. A stateful copy of the downstream application validates the proposed stream. A bad fork is squashed, so its record never reaches the production consumer. Successful proposals are promoted.</p>
         <figure class="article-figure wide" id="figure-7">
           <a href="../../resources/blog/agilelog/restocking-agent.png" aria-label="Open Figure 7 at full size">
-            <img src="../../resources/blog/agilelog/restocking-agent.png" width="901" height="256" loading="lazy" alt="The Kafka consumer's throughput drops to zero after a malformed restock event near 60 seconds. Bolt continues processing, with temporary dips while promotable forks await validation.">
+            <img src="../../resources/blog/agilelog/restocking-agent.png" width="1798" height="496" loading="lazy" alt="The Kafka consumer's throughput drops to zero after a malformed restock event near 27 seconds. Bolt continues processing, with temporary dips while promotable forks await validation.">
           </a>
-          <figcaption><strong>Figure 7.</strong> Validation on a fork prevents the injected bad record from crashing Bolt's production consumer. Brief throughput dips reflect the read barrier while a promotable fork is pending. Original chart from the talk.</figcaption>
+          <figcaption><strong>Figure 7.</strong> Validation on a fork prevents the injected bad record from crashing Bolt's production consumer. Brief throughput dips reflect the read barrier while a promotable fork is pending. Updated plot from the slides; the two panels show different time windows.</figcaption>
         </figure>
         <p>This protection has a visible cost: the consumer pauses at the fork point while validation is pending. It resumes after promotion or squashing. The experiment demonstrates a way to contain an agent's mistake, with an explicit tradeoff between validation and immediate visibility.</p>
 
