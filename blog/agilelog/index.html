@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgileLog: letting AI agents safely operate on data streams | DASSL Blog</title>
+  <meta name="description" content="AgileLog gives AI agents isolated forks of live data streams. Learn how continuous forks work and how Bolt makes them fast with a diskless architecture.">
+  <meta name="author" content="Shreesha G. Bhat, Tony Hong, Michael Noguera, Aishwarya Ganesan, Ramnatthan Alagappan">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="AgileLog: letting AI agents safely operate on data streams">
+  <meta property="og:description" content="A forkable shared log for agents that need room to explore—and live data to explore with.">
+  <meta property="og:url" content="https://dassl-uiuc.github.io/blog/agilelog/">
+  <meta property="og:image" content="https://dassl-uiuc.github.io/resources/blog/agilelog/continuous-fork.png">
+  <link rel="canonical" href="https://dassl-uiuc.github.io/blog/agilelog/">
+  <link rel="icon" href="https://cdn.brand.illinois.edu/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../resources/blog.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="../../index.html">DASSL <span>UIUC</span></a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="../index.html" aria-current="location">Blog</a>
+        <a href="../../index.html#Publications">Publications</a>
+        <a href="https://github.com/dassl-uiuc/">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap" id="main">
+    <article>
+      <header class="article-header">
+        <a class="back-link" href="../index.html"><span aria-hidden="true">←</span> All articles</a>
+        <p class="eyebrow">DASSL research series / 01</p>
+        <h1>AgileLog: letting AI agents safely operate on data streams</h1>
+        <p class="dek">Agents need room to explore. A forkable shared log gives them that room—and keeps them connected to live data.</p>
+        <p class="byline">Shreesha G. Bhat, Tony Hong, Michael Noguera,<br>Aishwarya Ganesan, and Ramnatthan Alagappan</p>
+        <p class="article-meta"><time datetime="2026-09-27">September 27, 2026</time> · University of Illinois Urbana-Champaign · SOSP '26</p>
+        <div class="resource-links">
+          <a href="../../pdfs/papers/agilelog.pdf">Read the paper</a>
+          <a href="https://github.com/dassl-uiuc/AgileLog-Proto">Explore the code <span aria-hidden="true">↗</span></a>
+        </div>
+      </header>
+
+      <div class="article-body">
+        <div class="summary">
+          <p><strong>TL;DR.</strong> AI agents explore, retry, and sometimes write wrong data records. Sharing a production stream with them can slow down other applications or break downstream consumers. <strong>AgileLog</strong> introduces forks into the shared-log abstraction. Its <em>continuous forks</em> inherit live records from a parent while keeping an agent's writes private. <strong>Bolt</strong>, our implementation, builts atop diskless shared logs to make forks fast and cheap, and isolate performance.</p>
+        </div>
+
+        <nav class="contents" aria-label="Table of contents">
+          <h2>In this article</h2>
+          <ol>
+            <li><a href="#agents">Agents are a new kind of streaming client</a></li>
+            <li><a href="#forkable-log">Rethinking the shared log</a></li>
+            <li><a href="#continuous-forks">A sandbox that stays live</a></li>
+            <li><a href="#validation">Validate, then promote</a></li>
+            <li><a href="#bolt">How Bolt makes forks practical</a></li>
+            <li><a href="#evaluation">What happens in the experiments?</a></li>
+            <li><a href="#next">Building data systems for agents</a></li>
+            <li><a href="#references">References</a></li>
+          </ol>
+        </nav>
+
+        <h2 id="agents">1. Agents are a new kind of streaming client</h2>
+        <p>Live data streams connect the systems that run an organization: orders, inventory updates, sensor readings, and much more. A shared log sits underneath these streams. Producers append records; the log orders them and makes them durable; downstream consumers read and process them. Shared-log designs such as CORFU establish this foundation. <a class="citation" id="cite-corfu-1" href="#ref-corfu" role="doc-biblioref" aria-label="Reference 1: CORFU: A Shared Log Design for Flash Clusters">[1]</a></p>
+        <p>Now imagine asking an agent, “Show the trending products in a rolling five-minute window.” The agent might inspect available streams, sample records to infer their schemas, try a query, and refine it. Other agents might moderate incoming content, build a stream processor, or inject test transactions to check a fraud detector.</p>
+        <p>These are useful new clients, but their behavior differs from traditional programs that follow a fixed sequence of steps. Agents, unlike traditional programs, choose their next actions through LLM reasoning and invoke tools to carry them out. ReAct explores interleaving reasoning with actions, <a class="citation" id="cite-react-1" href="#ref-react" role="doc-biblioref" aria-label="Reference 2: ReAct: Synergizing Reasoning and Acting in Language Models">[2]</a> while Toolformer shows how language models can learn to call external APIs. <a class="citation" id="cite-toolformer-1" href="#ref-toolformer" role="doc-biblioref" aria-label="Reference 3: Toolformer: Language Models Can Teach Themselves to Use Tools">[3]</a></p>
+        <p>In <em>Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First</em>, Liu et al. describe <em>agentic speculation</em>: agents explore possible solutions, probe data, and validate intermediate results at high volume. They argue that data systems should natively support this behavior. <a class="citation" id="cite-overlords-1" href="#ref-overlords" role="doc-biblioref" aria-label="Reference 4: Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First">[4]</a> Giurgiu and Nidd likewise describe the challenges posed by dynamic, context-driven agentic workloads. <a class="citation" id="cite-dynamic-workloads-1" href="#ref-dynamic-workloads" role="doc-biblioref" aria-label="Reference 5: Supporting Dynamic Agentic Workloads: How Data and Agents Interact">[5]</a> For streaming infrastructure, this motivates four requirements.</p>
+        <ul>
+          <li><strong>Performance interference.</strong> Exploratory reads and parallel investigations place done by agents load on the same servers that serve production applications. A latency-sensitive consumer should not be impacted by an agent's activity.</li>
+          <li><strong>Unsafe writes.</strong> An agent can append incorrect records. A downstream consumer may crash or worse silently compute the wrong result. Writes thus need a place to be staged and validated before they take effect on the original streams. Dolt's safe-agent-write workflow illustrates the same need for isolation and review before committing an agent's changes. <a class="citation" id="cite-safe-writes-1" href="#ref-safe-writes" role="doc-biblioref" aria-label="Reference 6: Safe Agent Writes in Workbench Demo">[6]</a></li>
+          <li><strong>Exploratory writes.</strong> An agent may try several models or alternative actions and choose one. Those alternatives need to remain separate until a choice is made.</li>
+          <li><strong>Realistic testing.</strong> Agents can be smart testers. A fraud test is more useful when its synthetic transaction is interleaved with real transactions. A sandbox must preserve temporal context without exposing production consumers to test events.</li>
+        </ul>
+        <p>Systems already expose streaming data to agents through tools (for example, StreamNative's MCP server. <a class="citation" id="cite-streamnative-mcp-1" href="#ref-streamnative-mcp" role="doc-biblioref" aria-label="Reference 7: Introducing the StreamNative MCP Server: Connecting Streaming Data to AI Agents">[7]</a>)</p>
+
+        <h2 id="forkable-log">2. Rethinking the shared log</h2>
+        <p>Current streaming systems already allow agents to read and write data, but they cannot fully support the way agents operate. They lack the mechanisms needed to isolate agentic workloads from traditional applications, validate writes before they take effect, safely explore alternative write paths, and provide sandboxes with real streaming data.</p>
+        <p><strong>Our solution to these problems is to rethink the core storage abstraction underlying streams: the shared log.</strong> Producers and consumers interact through this abstraction, so giving it the right primitives lets us address these problems at the foundation of the streaming system.</p>
+        <p>We propose <strong>AgileLog, a shared log that offers forking as a first-class primitive.</strong> <a class="citation" id="cite-agilelog-1" href="#ref-agilelog" role="doc-biblioref" aria-label="Reference 8: AgileLog: A Forkable Shared Log for Agents on Data Streams">[8]</a> A fork is a cheap, logically separate, performance-isolated child log that shares its parent's history. Like the parent, it can be read, appended to, and forked again. Traditional applications continue to use the parent log, while each agent works on its own fork.</p>
+        <figure class="article-figure" id="figure-1">
+          <a href="../../resources/blog/agilelog/forkable-log.png" aria-label="Open Figure 1 at full size">
+            <img src="../../resources/blog/agilelog/forkable-log.png" width="1600" height="432" loading="lazy" alt="A parent shared log branches into two child logs at different points in its history. Each child inherits the records before its fork point.">
+          </a>
+          <figcaption><strong>Figure 1.</strong> Forking becomes a first-class log operation. Traditional applications use the parent; agents can work on their own child logs.</figcaption>
+        </figure>
+        <p>This gives each problem a natural place to be handled. Agents can run expensive explorations on separate forks, write into isolated forks, explore alternatives in parallel, and use forks as sandboxes containing real data. A validation step can decide which proposed writes should become visible to the main stream.</p>
+        <p>Forking data systems is not a new idea. Neon and Dolt provide database branches for agents, <a class="citation" id="cite-neon-1" href="#ref-neon" role="doc-biblioref" aria-label="Reference 9: Build Versioning / Checkpoints for your Agent">[9]</a> and Tigris offers forkable object-storage buckets. <a class="citation" id="cite-tigris-1" href="#ref-tigris" role="doc-biblioref" aria-label="Reference 10: Fork Buckets Like You Fork Code">[10]</a> Work on the agentic lakehouse also advocates isolated branches and validation for agent actions. <a class="citation" id="cite-agentic-lakehouse-1" href="#ref-agentic-lakehouse" role="doc-biblioref" aria-label="Reference 11: Safe, Untrusted, “Proof-Carrying” AI Agents: Toward the Agentic Lakehouse">[11]</a> Earlier academic systems like OrpheusDB <a class="citation" id="cite-orpheusdb-1" href="#ref-orpheusdb" role="doc-biblioref" aria-label="Reference 12: OrpheusDB: Bolt-on Versioning for Relational Databases">[12]</a>, Decibel <a class="citation" id="cite-decibel-1" href="#ref-decibel" role="doc-biblioref" aria-label="Reference 13: Decibel: The Relational Dataset Branching System">[13]</a>, and Olive <a class="citation" id="cite-olive-1" href="#ref-olive" role="doc-biblioref" aria-label="Reference 14: Olive: Distributed Point-in-Time Branching Storage for Real Systems">[14]</a> also offer branching. The interesting question for streaming is what should happen <em>after</em> a fork is created.</p>
+
+        <h2 id="continuous-forks">3. Continuous Forks </h2>
+        <p>A conventional fork shares history up to a point, then evolves independently. We call this a <strong>severed fork</strong>, or <strong>sFork</strong>. It is useful for analyzing a fixed range of past events. But an agent producing a live dashboard needs new records as they arrive. A severed fork would leave it working with an increasingly stale view.</p>
+        <p>AgileLog therefore also offers <strong>continuous forks</strong>, or <strong>cForks</strong>. A cFork inherits both the parent's history and its subsequent appends. The agent can append its own records to the child, but those records stay private to that child. </p>
+        <figure class="article-figure wide" id="figure-2">
+          <a href="../../resources/blog/agilelog/continuous-fork.png" aria-label="Open Figure 2 at full size">
+            <img src="../../resources/blog/agilelog/continuous-fork.png" width="1600" height="351" loading="lazy" alt="Live records appended to the parent also enter the continuous child fork. A pink record appended by the agent appears only in the child, which retains real-time context.">
+          </a>
+          <figcaption><strong>Figure 2.</strong> A continuous fork keeps receiving live data. Parent writes flow into the child; the child's own writes remain isolated.</figcaption>
+        </figure>
+        <p>This is <strong>unidirectional write isolation</strong>: writes on the parent are visible to its cForks but not the other way around. In contrast to this, regular sForks offer bidirectional isolation. For a testing agent, it means a synthetic event can appear alongside real incoming events without ever entering the production log. For an analytics agent, it means an isolated workspace that continues to see current data.</p>
+        <p>The ordering matters too. A cFork's own appends are <em>linearizably interleaved</em> with inherited records, following the real-time ordering requirement of linearizability. <a class="citation" id="cite-linearizability-1" href="#ref-linearizability" role="doc-biblioref" aria-label="Reference 15: Linearizability: A Correctness Condition for Concurrent Objects">[15]</a> Concretely, if an append on the parent finishes before an append on the child begins, the child sees them in that order. It gets a coherent event sequence for testing or processing.</p>
+        <div class="table-scroll" role="region" aria-label="Comparison of fork types" tabindex="0">
+          <table>
+            <thead><tr><th scope="col">Property</th><th scope="col">Severed fork</th><th scope="col">Continuous fork</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Parent history</th><td>Inherited up to the fork point</td><td>Inherited up to the fork point</td></tr>
+              <tr><th scope="row">New parent records</th><td>Not inherited</td><td>Continuously inherited</td></tr>
+              <tr><th scope="row">Child writes</th><td>Private to the child</td><td>Private unless promoted</td></tr>
+              <tr><th scope="row">Example use</th><td>Analyze past events</td><td>Live analytics, testing, validated writes</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="validation">4. Validate, then promote</h2>
+        <p>Test events should stay in their sandbox. Other agentic writes—such as restock events proposed by a supply-chain agent—are intended to become part of the actual stream. AgileLog supports that with <code>promote()</code>.</p>
+        <p>The agent creates a <em>promotable</em> cFork and writes into it. An application then validates the fork, perhaps by running a stateful copy of the downstream consumer. If validation succeeds, the fork can be promoted to replace the parent's log contents. If it fails, <code>squash()</code> deletes the fork. Validation is supplied by the application; forking itself does not determine whether a proposed action is correct.</p>
+        <p>The same mechanism supports exploration. An agent can propose several alternatives on different promotable forks, compare their results, and promote one. Only the first successful promotion wins; the competing promotable forks are squashed.</p>
+        <p>AgileLog adds a few new calls to the regular shared-log interface. Alongside usual reads and appends, we now have the fork, promote, and squash calls.</p>
+        <pre aria-label="AgileLog interface pseudocode"><code>interface AgileLog {
+  Position append(Record r);
+  List&lt;Record&gt; read(Position from, Position to);
+
+  AgileLog cFork(promotable = false);
+  AgileLog sFork(optional Position past);
+  bool promote();
+  void squash();
+}</code></pre>
+        <p class="note"><strong>Promote semantics.</strong> Promotion can change record positions. While a promotable cFork is pending, reads on the parent cannot advance beyond its fork point; append positions also cannot be returned beyond that point. Promotion or squashing releases these restrictions. Non-promotable cForks avoid imposing any restrictions. The <a href="../../pdfs/papers/agilelog.pdf#page=5">paper's §4.1</a> explains the full semantics, including effects on descendants.</p>
+
+        <h2 id="bolt">5. How Bolt makes forks practical</h2>
+        <p>An abstraction is useful only if the system can implement it efficiently. Bolt needs forks to be quick to create and isolated in performance. Those goals pull in different directions.</p>
+        <p>Hosting a fork on its parent shared log's storage servers avoids a data copy (making fork creations instantaneous), but makes their workloads compete for resources. Copying everything to another cluster separates the workloads, but makes fork creation expensive, prohibitively so.</p>
+        <p>Bolt resolves this tension with a <strong>diskless shared-log architecture</strong>, building on the separation of compute and object storage seen in systems such as Aiven's diskless Kafka and WarpStream. <a class="citation" id="cite-aiven-1" href="#ref-aiven" role="doc-biblioref" aria-label="Reference 16: Diskless topics for Apache Kafka">[16]</a> <a class="citation" id="cite-warpstream-1" href="#ref-warpstream" role="doc-biblioref" aria-label="Reference 17: The Diskless, Kafka Compatible Data Streaming Platform">[17]</a> Brokers write records to shared object storage like S3 rather than their own local disks. A fault-tolerant metadata layer tracks record order and storage locations. A fork can reference the same stored objects while its requests are served by a separate broker.</p>
+        <figure class="article-figure wide" id="figure-3">
+          <a href="../../resources/blog/agilelog/bolt-architecture.png" aria-label="Open Figure 3 at full size">
+            <img src="../../resources/blog/agilelog/bolt-architecture.png" width="1600" height="495" loading="lazy" alt="Separate brokers, including a broker for the fork, access a shared scalable storage layer. The metadata layer tracks location and order, and the fork has its own metadata.">
+          </a>
+          <figcaption><strong>Figure 3.</strong> Bolt separates compute from storage. Forks share durable objects and have their own logical metadata; separate brokers isolate their workloads.</figcaption>
+        </figure>
+        <p>This architecture removes the need to copy data. But copying an index for a large log can still be slow, and eagerly updating every child on every parent append could make continuous forks expensive. Bolt adds several techniques:</p>
+        <ul>
+          <li><strong>Zero-metadata-copy fork creation.</strong> A hierarchical log index lets a new fork refer to inherited metadata instead of copying the parent's entire index.</li>
+          <li><strong>Tail-only updates.</strong> For inherited records, Bolt can track the parent's progress without duplicating each record's metadata in every cFork.</li>
+          <li><strong>Lazy tail propagation.</strong> A lazy tail tree efficiently tracks progress across the fork hierarchy, resolving a child's current tail when it is needed.</li>
+        </ul>
+        <p>The diskless architecture provides the foundation; these metadata techniques make it practical to have many continuous forks. The <a href="../../pdfs/papers/agilelog.pdf#page=6">paper's system-design sections</a> describe the indexing, ordering, and propagation mechanisms in detail. The lead author, Shreesha, used some clever tricks in the implementation to make the above techniques work well.</p>
+
+        <h2 id="evaluation">6. What happens in the experiments?</h2>
+        <p>The experiments here highlight fork creation, the effect of many forks on a parent, and two applications using real LLM-powered agents. The paper has a more detailed set of experiments (§6 of the AgileLog paper). <a class="citation" id="cite-agilelog-2" href="#ref-agilelog" role="doc-biblioref" aria-label="Reference 8: AgileLog: A Forkable Shared Log for Agents on Data Streams">[8]</a></p>
+
+        <h3>Fast forks, without copying metadata</h3>
+        <p>Bolt creates forks in <strong>10s of microseconds</strong>. The metadata-copying variant, BoltMetaCpy, gets slower as the log grows—reaching about 100 milliseconds for 25 million entries. These measurements assign forks to an already running broker; they do not include provisioning new compute.</p>
+        <figure class="article-figure compact" id="figure-4">
+          <a href="../../resources/blog/agilelog/fork-latency.png" aria-label="Open Figure 4 at full size">
+            <img src="../../resources/blog/agilelog/fork-latency.png" width="387" height="286" loading="lazy" alt="Log-scale chart of fork latency versus log entries. Bolt remains near 50 microseconds while BoltMetaCpy grows to about 100,000 microseconds.">
+          </a>
+          <figcaption><strong>Figure 4.</strong> Avoiding metadata copies keeps fork creation fast as log history grows.</figcaption>
+        </figure>
+        <p>Continuous inheritance also has little effect on the parent in the plotted experiments. The throughput–latency curves closely overlap with 0, 10, and 100 cForks per root, both for one root log and for 32 root logs.</p>
+        <figure class="article-figure wide" id="figure-5">
+          <a href="../../resources/blog/agilelog/parent-performance.png" aria-label="Open Figure 5 at full size">
+            <img src="../../resources/blog/agilelog/parent-performance.png" width="808" height="292" loading="lazy" alt="Parent append throughput–latency curves with 0, 10, and 100 continuous forks nearly overlap for both one root log and 32 root logs.">
+          </a>
+          <figcaption><strong>Figure 5.</strong> The parent retains similar performance with up to 100 cForks per root in these tests. Original chart from the talk.</figcaption>
+        </figure>
+
+        <h3>An analytics agent alongside a live workload</h3>
+        <p>We built an ad-hoc analytics agent using Gemini-2.5-Pro to investigate anomalies in IoT sensor data. It reads records, issues SQL queries, and pursues multiple hypotheses. A traditional latency-sensitive workload monitors newly arriving readings alongside it. For a reproducible comparison, we capture one agent run and replay its trace on Kafka and Bolt.</p>
+        <p>With Kafka, both workloads contend at the shared broker. During the agent's query-execution phases, the traditional workload's mean latency increases <strong>14×</strong> and its p99 latency increases about <strong>130×</strong> relative to the agent's thinking phases. With Bolt, the agent analyzes the historical records on an sFork using a separate broker, and the traditional workload's latency remains stable.</p>
+        <figure class="article-figure wide" id="figure-6">
+          <a href="../../resources/blog/agilelog/analytics-agent.png" aria-label="Open Figure 6 at full size">
+            <img src="../../resources/blog/agilelog/analytics-agent.png" width="1177" height="271" loading="lazy" alt="Kafka's traditional workload experiences latency spikes while the analytics agent executes queries. Bolt's latency stays stable. Mean and p99 Kafka latency rise 14 and 130.8 times between thinking and query execution.">
+          </a>
+          <figcaption><strong>Figure 6.</strong> Agent exploration interferes with the colocated Kafka workload. Bolt isolates the analytics work on a fork. The multipliers compare query-execution and thinking phases within each system. Original chart from the talk.</figcaption>
+        </figure>
+
+        <h3>A restocking agent that can make mistakes</h3>
+        <p>The second example is a supply-chain agent that appends restock events based on historical demand. We inject a schema error into an agent-created event to simulate a mistake. When the event goes directly into Kafka's main stream, the downstream consumer crashes.</p>
+        <p>With Bolt, the agent writes into a promotable cFork first. A stateful copy of the downstream application validates the proposed stream. A bad fork is squashed, so its record never reaches the production consumer. Successful proposals are promoted.</p>
+        <figure class="article-figure wide" id="figure-7">
+          <a href="../../resources/blog/agilelog/restocking-agent.png" aria-label="Open Figure 7 at full size">
+            <img src="../../resources/blog/agilelog/restocking-agent.png" width="901" height="256" loading="lazy" alt="The Kafka consumer's throughput drops to zero after a malformed restock event near 60 seconds. Bolt continues processing, with temporary dips while promotable forks await validation.">
+          </a>
+          <figcaption><strong>Figure 7.</strong> Validation on a fork prevents the injected bad record from crashing Bolt's production consumer. Brief throughput dips reflect the read barrier while a promotable fork is pending. Original chart from the talk.</figcaption>
+        </figure>
+        <p>This protection has a visible cost: the consumer pauses at the fork point while validation is pending. It resumes after promotion or squashing. The experiment demonstrates a way to contain an agent's mistake, with an explicit tradeoff between validation and immediate visibility.</p>
+
+        <h2 id="next">7. Building data systems for agents</h2>
+        <p>Agents are becoming users of data infrastructure. Their need to explore alternatives, test ideas, and act on live context should influence the abstractions that infrastructure offers—the broader case made by <em>Supporting Our AI Overlords</em>. <a class="citation" id="cite-overlords-2" href="#ref-overlords" role="doc-biblioref" aria-label="Reference 4: Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First">[4]</a></p>
+        <p>AgileLog takes one step in that direction. Forking gives agents separate workspaces. Continuous forks keep those workspaces connected to the live stream. Promotion provides a controlled way to integrate validated writes. Bolt shows how shared storage and careful metadata design can make these operations practical.</p>
+        <p>For the full design and evaluation, read <a href="../../pdfs/papers/agilelog.pdf"><em>AgileLog: A Forkable Shared Log for Agents on Data Streams</em></a>, appearing at SOSP '26, and explore the <a href="https://github.com/dassl-uiuc/AgileLog-Proto">research prototype</a>.</p>
+
+        <section class="references" role="doc-bibliography" aria-labelledby="references">
+          <h2 id="references">References</h2>
+          <p>The AgileLog paper and related work on agents, streaming, and data versioning. Numbers follow the order of citation in this article.</p>
+          <ol class="reference-list">
+            <li id="ref-corfu" data-paper-reference="35">Mahesh Balakrishnan, Dahlia Malkhi, Vijayan Prabhakaran, Ted Wobber, Michael Wei, and John D. Davis. <cite><a href="https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/balakrishnan">CORFU: A Shared Log Design for Flash Clusters</a></cite>. NSDI, 2012. <a class="reference-backlink" href="#cite-corfu-1" role="doc-backlink" aria-label="Return to the first citation of reference 1">↩</a></li>
+            <li id="ref-react" data-paper-reference="140">Shunyu Yao et al. <cite><a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a></cite>. ICLR, 2023. <a class="reference-backlink" href="#cite-react-1" role="doc-backlink" aria-label="Return to the first citation of reference 2">↩</a></li>
+            <li id="ref-toolformer" data-paper-reference="112">Timo Schick et al. <cite><a href="https://proceedings.neurips.cc/paper/2023/hash/d842425e4bf79ba039352da0f658a906-Abstract-Conference.html">Toolformer: Language Models Can Teach Themselves to Use Tools</a></cite>. NeurIPS, 2023. <a class="reference-backlink" href="#cite-toolformer-1" role="doc-backlink" aria-label="Return to the first citation of reference 3">↩</a></li>
+            <li id="ref-overlords" data-paper-reference="84">Shu Liu et al. <cite><a href="https://arxiv.org/abs/2509.00997">Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First</a></cite>. CIDR, 2026. <a class="reference-backlink" href="#cite-overlords-1" role="doc-backlink" aria-label="Return to the first citation of reference 4">↩</a></li>
+            <li id="ref-dynamic-workloads" data-paper-reference="59">Ioana Giurgiu and Michael E. Nidd. <cite><a href="https://arxiv.org/abs/2512.09548">Supporting Dynamic Agentic Workloads: How Data and Agents Interact</a></cite>. arXiv:2512.09548, 2025. <a class="reference-backlink" href="#cite-dynamic-workloads-1" role="doc-backlink" aria-label="Return to the first citation of reference 5">↩</a></li>
+            <li id="ref-safe-writes" data-paper-reference="78">James Leng. <cite><a href="https://www.dolthub.com/blog/2025-11-25-safe-agent-writes-video/">Safe Agent Writes in Workbench Demo</a></cite>. DoltHub, 2025. <a class="reference-backlink" href="#cite-safe-writes-1" role="doc-backlink" aria-label="Return to the first citation of reference 6">↩</a></li>
+            <li id="ref-streamnative-mcp" data-paper-reference="13">StreamNative. <cite><a href="https://streamnative.io/blog/introducing-the-streamnative-mcp-server-connecting-streaming-data-to-ai-agents">Introducing the StreamNative MCP Server: Connecting Streaming Data to AI Agents</a></cite>.  <a class="reference-backlink" href="#cite-streamnative-mcp-1" role="doc-backlink" aria-label="Return to the first citation of reference 7">↩</a></li>
+            <li id="ref-agilelog">Shreesha G. Bhat, Tony Hong, Michael Noguera, Aishwarya Ganesan, and Ramnatthan Alagappan. <cite><a href="../../pdfs/papers/agilelog.pdf">AgileLog: A Forkable Shared Log for Agents on Data Streams</a></cite>. SOSP, 2026. <a class="reference-backlink" href="#cite-agilelog-1" role="doc-backlink" aria-label="Return to the first citation of reference 8">↩</a></li>
+            <li id="ref-neon" data-paper-reference="6">Neon. <cite><a href="https://neon.com/branching/branching-for-agents">Build Versioning / Checkpoints for your Agent</a></cite>.  <a class="reference-backlink" href="#cite-neon-1" role="doc-backlink" aria-label="Return to the first citation of reference 9">↩</a></li>
+            <li id="ref-tigris" data-paper-reference="11">Tigris. <cite><a href="https://www.tigrisdata.com/blog/fork-buckets-like-code/">Fork Buckets Like You Fork Code</a></cite>.  <a class="reference-backlink" href="#cite-tigris-1" role="doc-backlink" aria-label="Return to the first citation of reference 10">↩</a></li>
+            <li id="ref-agentic-lakehouse" data-paper-reference="122">Jacopo Tagliabue and Ciro Greco. <cite><a href="https://arxiv.org/abs/2510.09567">Safe, Untrusted, “Proof-Carrying” AI Agents: Toward the Agentic Lakehouse</a></cite>. arXiv:2510.09567, 2025. <a class="reference-backlink" href="#cite-agentic-lakehouse-1" role="doc-backlink" aria-label="Return to the first citation of reference 11">↩</a></li>
+            <li id="ref-orpheusdb">Silu Huang, Liqi Xu, Jialin Liu, Aaron J. Elmore, and Aditya G. Parameswaran. <cite><a href="https://www.vldb.org/pvldb/vol10/p1130-huang.pdf">OrpheusDB: Bolt-on Versioning for Relational Databases</a></cite>. Proceedings of the VLDB Endowment 10(10), 2017. <a class="reference-backlink" href="#cite-orpheusdb-1" role="doc-backlink" aria-label="Return to the first citation of reference 12">↩</a></li>
+            <li id="ref-decibel">Michael Maddox, David Goehring, Aaron J. Elmore, Samuel Madden, Aditya Parameswaran, and Amol Deshpande. <cite><a href="https://www.vldb.org/pvldb/vol9/p624-maddox.pdf">Decibel: The Relational Dataset Branching System</a></cite>. Proceedings of the VLDB Endowment 9(9), 2016. <a class="reference-backlink" href="#cite-decibel-1" role="doc-backlink" aria-label="Return to the first citation of reference 13">↩</a></li>
+            <li id="ref-olive" data-paper-reference="21">Marcos K. Aguilera, Susan Spence, and Alistair Veitch. <cite><a href="https://www.usenix.org/conference/nsdi-06/olive-distributed-point-time-branching-storage-real-systems">Olive: Distributed Point-in-Time Branching Storage for Real Systems</a></cite>. NSDI, 2006. <a class="reference-backlink" href="#cite-olive-1" role="doc-backlink" aria-label="Return to the first citation of reference 14">↩</a></li>
+            <li id="ref-linearizability" data-paper-reference="67">Maurice P. Herlihy and Jeannette M. Wing. <cite><a href="https://www.cs.cmu.edu/~wing/publications/HerlihyWing90.pdf">Linearizability: A Correctness Condition for Concurrent Objects</a></cite>. ACM Transactions on Programming Languages and Systems 12(3), 1990. <a class="reference-backlink" href="#cite-linearizability-1" role="doc-backlink" aria-label="Return to the first citation of reference 15">↩</a></li>
+            <li id="ref-aiven" data-paper-reference="22">Aiven. <cite><a href="https://aiven.io/docs/products/kafka/diskless/concepts/diskless-topic-overview">Diskless topics for Apache Kafka</a></cite>.  <a class="reference-backlink" href="#cite-aiven-1" role="doc-backlink" aria-label="Return to the first citation of reference 16">↩</a></li>
+            <li id="ref-warpstream" data-paper-reference="134">WarpStream. <cite><a href="https://www.warpstream.com/">The Diskless, Kafka Compatible Data Streaming Platform</a></cite>.  <a class="reference-backlink" href="#cite-warpstream-1" role="doc-backlink" aria-label="Return to the first citation of reference 17">↩</a></li>
+          </ol>
+        </section>
+
+        <aside class="series-next" aria-label="Next in the series">
+          <div><p class="eyebrow">Up next / 02</p><p><strong>Prism</strong><br>Indexes for partly coherent CXL memory</p></div>
+          <a href="../index.html">See the series <span aria-hidden="true">→</span></a>
+        </aside>
+      </div>
+    </article>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <span>DASSL · University of Illinois Urbana-Champaign</span>
+      <a href="../index.html">All articles</a>
+    </div>
+  </footer>
+</body>
+</html>
