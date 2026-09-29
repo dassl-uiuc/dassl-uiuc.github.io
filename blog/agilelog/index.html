@@ -36,7 +36,7 @@
         <a class="back-link" href="../index.html"><span aria-hidden="true">←</span> All articles</a>
         <p class="eyebrow">DASSL research series / 01</p>
         <h1>AgileLog: letting AI agents safely operate on data streams</h1>
-        <p class="dek">Agents need room to explore. A forkable shared log gives them that room—and keeps them connected to live data.</p>
+        <p class="dek">A forkable shared log enables AI agents to safely operate over live streaming data without interfering with production workloads.</p>
         <p class="byline">Shreesha G. Bhat, Tony Hong, Michael Noguera,<br>Aishwarya Ganesan, and Ramnatthan Alagappan</p>
         <p class="article-meta"><time datetime="2026-09-27">September 27, 2026</time> · University of Illinois Urbana-Champaign · SOSP '26</p>
         <div class="resource-links">
@@ -91,8 +91,8 @@
         <p>Forking data systems is not a new idea. Neon and Dolt provide database branches for agents, <a class="citation" id="cite-neon-1" href="#ref-neon" role="doc-biblioref" aria-label="Reference 9: Build Versioning / Checkpoints for your Agent">[9]</a> and Tigris offers forkable object-storage buckets. <a class="citation" id="cite-tigris-1" href="#ref-tigris" role="doc-biblioref" aria-label="Reference 10: Fork Buckets Like You Fork Code">[10]</a> Work on the agentic lakehouse also advocates isolated branches and validation for agent actions. <a class="citation" id="cite-agentic-lakehouse-1" href="#ref-agentic-lakehouse" role="doc-biblioref" aria-label="Reference 11: Safe, Untrusted, “Proof-Carrying” AI Agents: Toward the Agentic Lakehouse">[11]</a> Earlier academic systems like OrpheusDB <a class="citation" id="cite-orpheusdb-1" href="#ref-orpheusdb" role="doc-biblioref" aria-label="Reference 12: OrpheusDB: Bolt-on Versioning for Relational Databases">[12]</a>, Decibel <a class="citation" id="cite-decibel-1" href="#ref-decibel" role="doc-biblioref" aria-label="Reference 13: Decibel: The Relational Dataset Branching System">[13]</a>, and Olive <a class="citation" id="cite-olive-1" href="#ref-olive" role="doc-biblioref" aria-label="Reference 14: Olive: Distributed Point-in-Time Branching Storage for Real Systems">[14]</a> also offer branching. The interesting question for streaming is what should happen <em>after</em> a fork is created.</p>
 
         <h2 id="continuous-forks">3. Continuous Forks </h2>
-        <p>A conventional fork shares history up to a point, then evolves independently. We call this a <strong>severed fork</strong>, or <strong>sFork</strong>. It is useful for analyzing a fixed range of past events. But an agent producing a live dashboard needs new records as they arrive. A severed fork would leave it working with an increasingly stale view.</p>
-        <p>AgileLog therefore also offers <strong>continuous forks</strong>, or <strong>cForks</strong>. A cFork inherits both the parent's history and its subsequent appends. The agent can append its own records to the child, but those records stay private to that child. </p>
+        <p>A conventional fork shares history up to the fork point, then evolves independently. We call this a <strong>severed fork</strong>, or <strong>sFork</strong>. It is useful for analyzing a fixed range of past events. But an agent producing a live dashboard needs new records as they arrive. A severed fork would leave it working with an increasingly stale view.</p>
+        <p>AgileLog therefore also offers <strong>continuous forks</strong>, or <strong>cForks</strong>, a novel form of forks. A cFork inherits both the parent's history and its subsequent appends. The agent can append its own records to the child, but those records stay private to that child. </p>
         <figure class="article-figure wide" id="figure-2">
           <a href="../../resources/blog/agilelog/continuous-fork.png" aria-label="Open Figure 2 at full size">
             <img src="../../resources/blog/agilelog/continuous-fork.png" width="1600" height="351" loading="lazy" alt="Live records appended to the parent also enter the continuous child fork. A pink record appended by the agent appears only in the child, which retains real-time context.">
@@ -100,6 +100,9 @@
           <figcaption><strong>Figure 2.</strong> A continuous fork keeps receiving live data. Parent writes flow into the child; the child's own writes remain isolated.</figcaption>
         </figure>
         <p>This is <strong>unidirectional write isolation</strong>: writes on the parent are visible to its cForks but not the other way around. In contrast to this, regular sForks offer bidirectional isolation. For a testing agent, it means a synthetic event can appear alongside real incoming events without ever entering the production log. For an analytics agent, it means an isolated workspace that continues to see current data.</p>
+        
+        <p class="note">To our knowledge, no existing fork primitive in operating systems or other contexts provides the same semantics as cForks: continuously inheriting parent modifications into the child while keeping child modifications private.</p>
+        
         <p>The ordering matters too. A cFork's own appends are <em>linearizably interleaved</em> with inherited records, following the real-time ordering requirement of linearizability. <a class="citation" id="cite-linearizability-1" href="#ref-linearizability" role="doc-biblioref" aria-label="Reference 15: Linearizability: A Correctness Condition for Concurrent Objects">[15]</a> Concretely, if an append on the parent finishes before an append on the child begins, the child sees them in that order. It gets a coherent event sequence for testing or processing.</p>
         <div class="table-scroll" role="region" aria-label="Comparison of fork types" tabindex="0">
           <table>
@@ -114,7 +117,7 @@
         </div>
 
         <h2 id="validation">4. Validate, then promote</h2>
-        <p>Test events should stay in their sandbox. Other agentic writes—such as restock events proposed by a supply-chain agent—are intended to become part of the actual stream. AgileLog supports that with <code>promote()</code>.</p>
+        <p>Test events should stay in their sandbox. Other agentic writes (e.g., restock events proposed by a supply-chain agent) are intended to become part of the actual stream. AgileLog supports that with <code>promote()</code>.</p>
         <p>The agent creates a <em>promotable</em> cFork and writes into it. An application then validates the fork, perhaps by running a stateful copy of the downstream consumer. If validation succeeds, the fork can be promoted to replace the parent's log contents. If it fails, <code>squash()</code> deletes the fork. Validation is supplied by the application; forking itself does not determine whether a proposed action is correct.</p>
         <p>The same mechanism supports exploration. An agent can propose several alternatives on different promotable forks, compare their results, and promote one. Only the first successful promotion wins; the competing promotable forks are squashed.</p>
         <p>AgileLog adds a few new calls to the regular shared-log interface. Alongside usual reads and appends, we now have the fork, promote, and squash calls.</p>
@@ -128,6 +131,8 @@
   void squash();
 }</code></pre>
         <p class="note"><strong>Promote semantics.</strong> Promotion can change record positions. While a promotable cFork is pending, reads on the parent cannot advance beyond its fork point; append positions also cannot be returned beyond that point. Promotion or squashing releases these restrictions. Non-promotable cForks avoid imposing any restrictions. The <a href="../../pdfs/papers/agilelog.pdf#page=5">paper's §4.1</a> explains the full semantics, including effects on descendants.</p>
+
+        <p><strong>Why not multi-way merge?</strong> The promote interface offered by AgileLog is a form of restricted merge: it incorporates writes from a single forked child into the parent. Merging writes from multiple divergent forks is hard to do without more application-level knowledge. AgileLog sits below applications as a foundational shared log layer. One way to support multi-way merges would be to allow applications to specify merge rules to AgileLog. We haven't explored this design yet.</p>
 
         <h2 id="bolt">5. How Bolt makes forks practical</h2>
         <p>An abstraction is useful only if the system can implement it efficiently. Bolt needs forks to be quick to create and isolated in performance. Those goals pull in different directions.</p>
@@ -145,28 +150,28 @@
           <li><strong>Tail-only updates.</strong> For inherited records, Bolt can track the parent's progress without duplicating each record's metadata in every cFork.</li>
           <li><strong>Lazy tail propagation.</strong> A lazy tail tree efficiently tracks progress across the fork hierarchy, resolving a child's current tail when it is needed.</li>
         </ul>
-        <p>The diskless architecture provides the foundation; these metadata techniques make it practical to have many continuous forks. The <a href="../../pdfs/papers/agilelog.pdf#page=6">paper's system-design sections</a> describe the indexing, ordering, and propagation mechanisms in detail. The lead author, Shreesha, used some clever tricks in the implementation to make the above techniques work well.</p>
+        <p>The diskless architecture provides the foundation; these metadata techniques make it practical to have many continuous forks. The <a href="../../pdfs/papers/agilelog.pdf#page=6">paper's system-design sections</a> describe the indexing, ordering, and propagation mechanisms in detail. The implementation uses some clever data-structural tricks to make the above techniques work well.</p>
 
         <h2 id="evaluation">6. What happens in the experiments?</h2>
         <p>The experiments here highlight fork creation, the effect of many forks on a parent, and two applications using real LLM-powered agents. The paper has a more detailed set of experiments (§6 of the AgileLog paper). <a class="citation" id="cite-agilelog-2" href="#ref-agilelog" role="doc-biblioref" aria-label="Reference 8: AgileLog: A Forkable Shared Log for Agents on Data Streams">[8]</a></p>
 
         <h3>Fast forks, without copying metadata</h3>
-        <p>Bolt creates forks in <strong>10s of microseconds</strong>. The metadata-copying variant, BoltMetaCpy, gets slower as the log grows—reaching about 100 milliseconds for 25 million entries. These measurements assign forks to an already running broker; they do not include provisioning new compute.</p>
+        <p>Bolt creates forks in <strong>10s of microseconds</strong>. The metadata-copying variant, BoltMetaCpy, gets slower as the log grows, reaching about 100 milliseconds for 25 million entries. In this experiment we have an already running pool of brokers to which we assign the created forks.</p>
         <figure class="article-figure compact" id="figure-4">
           <a href="../../resources/blog/agilelog/fork-latency.png" aria-label="Open Figure 4 at full size">
             <img src="../../resources/blog/agilelog/fork-latency.png" width="1250" height="758" loading="lazy" alt="Log-scale chart of fork latency versus log entries. The green Bolt curve remains in the tens of microseconds while BoltMetaCpy grows to about 100,000 microseconds.">
           </a>
-          <figcaption><strong>Figure 4.</strong> Avoiding metadata copies keeps fork creation fast as log history grows.</figcaption>
+          <figcaption><strong>Figure 4.</strong> Avoiding metadata copies keeps fork creation fast.</figcaption>
         </figure>
-        <h3>Why thousands of continuous forks?</h3>
-        <p><strong>Thousands of cForks are a realistic deployment scenario.</strong> Imagine giving every developer in a large organization a live branch of the production system's streams. Each developer, or their coding agent, can build and test stream processors against incoming production data, while keeping experimental writes and test events isolated from production consumers. With thousands of developers, even one live branch per developer means thousands of cForks; parallel development and testing tasks can create more.</p>
+        <h3>The case for thousands of continuous forks</h3>
+        <p>One question that keeps coming is when would we need many many forks. <strong>Thousands of cForks are a realistic deployment scenario!</strong> Imagine giving every developer in a large organization a live branch of the production system's streams. Each developer, or their coding agent, can build and test stream processors against incoming production data, while keeping experimental writes and test events isolated from production consumers. With thousands of developers, even one live branch per developer means thousands of cForks; parallel development and testing tasks can create more.</p>
         <p>To examine this scale, we measure parent metadata throughput and latency with 10, 100, and 1,000 cForks. With just 10 cForks, the naive approach is still viable: naive-cfork (orange) sustains substantial throughput, although Bolt (green) achieves lower latency and higher throughput. But as the number of cForks grows to 100 and then 1,000, the naive approach collapses: its sustainable throughput drops sharply, and latency rises even at low request rates. Bolt continues to sustain tens of thousands of metadata operations per second at latencies in the tens of microseconds.</p>
-        <p><strong>At this scale, efficient metadata updates are essential.</strong> Synchronously updating every child's index on each parent append puts too much work on the parent's critical path. Bolt's tail-only updates eliminate those per-child index updates, and lazy tail propagation avoids eagerly updating every child's tail. Together, these techniques let Bolt support many cForks without the collapse seen in the naive approach. These plots measure metadata-layer performance, rather than end-to-end log latency.</p>
+        <p><strong>At this scale, efficient metadata updates are essential.</strong> Synchronously updating every child's index on each parent append puts too much work on the parent's critical path. Bolt's tail-only updates eliminate those per-child index updates, and lazy tail propagation avoids eagerly updating every child's tail. Together, these techniques let Bolt support many cForks without the collapse seen in the naive approach. These plots measure metadata-layer performance, rather than end-to-end log latency. The paper has more ablation studies.</p>
         <figure class="article-figure wide" id="figure-5">
           <a href="../../resources/blog/agilelog/parent-performance.png" aria-label="Open Figure 5 at full size">
             <img src="../../resources/blog/agilelog/parent-performance.png" width="1854" height="570" loading="lazy" alt="Parent metadata throughput versus latency with 10, 100, and 1,000 cForks. Bolt (green) sustains high throughput in all three settings; naive-cfork (orange) loses throughput as fork counts increase. The 1,000-fork panel uses a logarithmic latency axis.">
           </a>
-          <figcaption><strong>Figure 5.</strong> Parent metadata scalability with 10, 100, and 1,000 cForks: Bolt (green) versus naive-cfork (orange). The rightmost panel uses a logarithmic latency axis; the other two use linear axes. Updated plot from the slides.</figcaption>
+          <figcaption><strong>Figure 5.</strong> Parent metadata scalability with 10, 100, and 1,000 cForks: Bolt (green) versus naive-cfork (orange). The rightmost panel uses a logarithmic latency axis; the other two use linear axes.</figcaption>
         </figure>
 
         <h3>An analytics agent alongside a live workload</h3>
@@ -176,7 +181,7 @@
           <a href="../../resources/blog/agilelog/analytics-agent.png" aria-label="Open Figure 6 at full size">
             <img src="../../resources/blog/agilelog/analytics-agent.png" width="1840" height="1280" loading="lazy" alt="Kafka's traditional workload experiences latency spikes while the analytics agent executes queries. Bolt's latency stays stable. Mean and p99 Kafka latency rise 14 and 130.8 times between thinking and query execution.">
           </a>
-          <figcaption><strong>Figure 6.</strong> Agent exploration interferes with the colocated Kafka workload. Bolt isolates the analytics work on a fork. Top: workload latency over time. Bottom: mean and p99 latency by phase. The multipliers compare query-execution and thinking phases within each system. Updated plots from the slides.</figcaption>
+          <figcaption><strong>Figure 6.</strong> Agent exploration interferes with the colocated Kafka workload. Bolt isolates the analytics work on a fork. Top: workload latency over time. Bottom: mean and p99 latency by phase. The multipliers compare query-execution and thinking phases within each system.</figcaption>
         </figure>
 
         <h3>A restocking agent that can make mistakes</h3>
@@ -186,13 +191,13 @@
           <a href="../../resources/blog/agilelog/restocking-agent.png" aria-label="Open Figure 7 at full size">
             <img src="../../resources/blog/agilelog/restocking-agent.png" width="1798" height="496" loading="lazy" alt="The Kafka consumer's throughput drops to zero after a malformed restock event near 27 seconds. Bolt continues processing, with temporary dips while promotable forks await validation.">
           </a>
-          <figcaption><strong>Figure 7.</strong> Validation on a fork prevents the injected bad record from crashing Bolt's production consumer. Brief throughput dips reflect the read barrier while a promotable fork is pending. Updated plot from the slides; the two panels show different time windows.</figcaption>
+          <figcaption><strong>Figure 7.</strong> Validation on a fork prevents the injected bad record from crashing Bolt's production consumer. Brief throughput dips reflect the read barrier while a promotable fork is pending.</figcaption>
         </figure>
-        <p>This protection has a visible cost: the consumer pauses at the fork point while validation is pending. It resumes after promotion or squashing. The experiment demonstrates a way to contain an agent's mistake, with an explicit tradeoff between validation and immediate visibility.</p>
+        <p>This protection has a small cost: the consumer pauses at the fork point while validation is pending. However, the consumer resumes once the records are validated and promoted or when the agent branch is squashed.</p>
 
         <h2 id="next">7. Building data systems for agents</h2>
-        <p>Agents are becoming users of data infrastructure. Their need to explore alternatives, test ideas, and act on live context should influence the abstractions that infrastructure offers—the broader case made by <em>Supporting Our AI Overlords</em>. <a class="citation" id="cite-overlords-2" href="#ref-overlords" role="doc-biblioref" aria-label="Reference 4: Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First">[4]</a></p>
-        <p>AgileLog takes one step in that direction. Forking gives agents separate workspaces. Continuous forks keep those workspaces connected to the live stream. Promotion provides a controlled way to integrate validated writes. Bolt shows how shared storage and careful metadata design can make these operations practical.</p>
+        <p>Agents are becoming users of data infrastructure. Their need to explore alternatives, test ideas, and act on live context should influence the abstractions that infrastructure offers. This is the broader case made by <em>Supporting Our AI Overlords</em>. <a class="citation" id="cite-overlords-2" href="#ref-overlords" role="doc-biblioref" aria-label="Reference 4: Supporting Our AI Overlords: Redesigning Data Systems to be Agent-First">[4]</a></p>
+        <p>AgileLog takes one step in that direction. Forking gives agents separate workspaces or brnaches. Continuous forks keep those workspaces/branches connected to the live stream. Promotion provides a controlled way to integrate validated writes. Bolt shows how shared storage and careful metadata design can make these operations practical.</p>
         <p>For the full design and evaluation, read <a href="../../pdfs/papers/agilelog.pdf"><em>AgileLog: A Forkable Shared Log for Agents on Data Streams</em></a>, appearing at SOSP '26, and explore the <a href="https://github.com/dassl-uiuc/AgileLog-Proto">research prototype</a>.</p>
 
         <section class="references" role="doc-bibliography" aria-labelledby="references">
