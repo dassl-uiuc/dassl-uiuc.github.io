@@ -771,6 +771,14 @@ li:last-child {
   transform: scale(1.035);
 }
 
+.gallery img.gallery-full-image {
+  object-fit: contain;
+}
+
+.gallery figure:hover img.gallery-full-image {
+  transform: none;
+}
+
 .gallery figcaption {
   position: absolute;
   right: 14px;
